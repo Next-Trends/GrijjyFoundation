@@ -887,9 +887,8 @@ function TgoReadOnlySet<T>.Contains(const AItem: T): Boolean;
 var
   Mask, Index, HashCode, HC: Integer;
 begin
-  Result := False;
   if (FCount = 0) then
-    Exit;
+    Exit(False);
 
   HashCode := FComparer.GetHashCode(AItem) and $7FFFFFFF;
   Mask := Length(FItems) - 1;
@@ -906,6 +905,8 @@ begin
 
     Index := (Index + 1) and Mask;
   end;
+
+  Result := False;
 end;
 
 constructor TgoReadOnlySet<T>.Create;
@@ -1136,7 +1137,7 @@ begin
     if (FItems[I].HashCode <> EMPTY_HASH) then
     begin
       Item := FItems[I].Item;
-      PObject(@Item)^.Free;
+      PObject(@Item)^.DisposeOf;
     end;
   end;
   inherited;
@@ -1179,7 +1180,7 @@ begin
   if IsManagedType(T) then
     FItems[Gap].Item := Default(T);
 
-  PObject(@Item)^.Free;
+  PObject(@Item)^.DisposeOf;
 
   Dec(FCount);
 end;
@@ -1784,9 +1785,8 @@ function TgoValueDictionary<TKey, TValue>.ContainsKey(
 var
   Mask, Index, HashCode, HC: Integer;
 begin
-  Result := False;
   if (FCount = 0) then
-    Exit;
+    Exit(False);
 
   HashCode := FComparer.GetHashCode(AKey) and $7FFFFFFF;
   Mask := Length(FItems) - 1;
@@ -1803,6 +1803,8 @@ begin
 
     Index := (Index + 1) and Mask;
   end;
+
+  Result := False;
 end;
 
 constructor TgoValueDictionary<TKey, TValue>.Create(

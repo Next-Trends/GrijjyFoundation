@@ -204,7 +204,7 @@ begin
 
   { wait for closed signal }
   ATimer.FClosed.WaitFor(INFINITE);
-  ATimer.Free;
+  ATimer.DisposeOf;
 end;
 
 procedure TgoTimerQueue.Release(const AHandle: THandle);
@@ -366,7 +366,7 @@ begin
 
   { destroy workers }
   for Worker in FWorkers do
-    Worker.Free;
+    Worker.DisposeOf;
 
   { close the epoll instance handle }
   if FHandle <> -1 then
@@ -390,4 +390,4 @@ finalization
   _TimersLock.Free;
   _TimerQueuePool.Free;
 
-end.
+end.

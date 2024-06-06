@@ -268,7 +268,6 @@ type
     FBehavior: TgoSocketPoolBehavior;
     FWorkers: array of TSocketPoolWorker;
     FWorkerHandles: array of THandle;
-    FShutdown: Boolean;
   private
     Connections: TgoSet<TgoSocketConnection>;
     ConnectionsLock: TCriticalSection;
@@ -291,9 +290,6 @@ type
 
     { Optimization mode }
     property Optimization: TgoSocketOptimization read FOptimization;
-
-    { Shutdown }
-    property Shutdown: Boolean read FShutdown;
   end;
 
 implementation
@@ -996,7 +992,7 @@ begin
   {$IFDEF DEBUG}
   NameThreadForDebugging('TSocketPoolWorker');
   {$ENDIF}
-  while Terminated = false do
+  while True do
   begin
     ReturnValue := GetQueuedCompletionStatus(FOwner.FHandle, BytesTransferred,
       ULONG_PTR(Connection), POverlapped(PerIoData), WSA_INFINITE);
@@ -1208,7 +1204,6 @@ begin
   inherited Create;
   FOptimization := AOptimization;
   FBehavior := ABehavior;
-  FShutdown := False;
 
   Connections := TgoSet<TgoSocketConnection>.Create;
   ConnectionsLock := TCriticalSection.Create;
@@ -1251,7 +1246,6 @@ var
   Connection: TgoSocketConnection;
   Start: TDateTime;
 begin
-  FShutdown := True;
   inherited Destroy;
 
   { There are 2 ways to shutdown and cleanup for IOCP:
@@ -1271,28 +1265,25 @@ begin
     safe to exit the thread. }
 
   { destroy all pending connections }
+  ConnectionsLock.Enter;
   try
-    ConnectionsLock.Enter;
-    try
-      for Connection in Connections.ToArray do
+    for Connection in Connections.ToArray do
+    begin
+      if not Connection.Closed then
       begin
-        if (Connection.State <> TgoConnectionState.Disconnected) and (not Connection.Closed) then
-        begin
-          Connection.PostDisconnect;
-          //closesocket(Connection.Socket);
-          CancelIoEx(Connection.Socket, nil);
-          Start := Now;
-          while (MillisecondsBetween(Now, Start) < TIMEOUT_CLOSE) and
-            (not Connection.Closed) do
-            Sleep(5);
-        end;
-        Connection.Free;
+        Connection.PostDisconnect;
+        //closesocket(Connection.Socket);
+        CancelIoEx(Connection.Socket, nil);
+        Start := Now;
+        while (MillisecondsBetween(Now, Start) < TIMEOUT_CLOSE) and
+          (not Connection.Closed) do
+          Sleep(5);
       end;
-      Connections.Free;
-    finally
-      ConnectionsLock.Leave;
+      Connection.Free;
     end;
-  except
+    Connections.Free;
+  finally
+    ConnectionsLock.Leave;
   end;
   ConnectionsLock.Free;
 
@@ -1459,9 +1450,6 @@ begin
     Result := nil;
     ConnectionsLock.Enter;
     try
-      if FShutdown then
-        Exit(nil);
-
       for Connection in Connections.ToArray do
       begin
         if (Connection.State = TgoConnectionState.Connected) and

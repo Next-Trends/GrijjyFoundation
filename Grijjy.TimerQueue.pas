@@ -660,7 +660,7 @@ begin
 
   // Destroy workers
   for Worker in FWorkers do
-    Worker.Free;
+    Worker.DisposeOf;
 
   // Close the epoll instance handle
   if FHandle <> -1 then

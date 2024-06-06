@@ -1086,14 +1086,12 @@ begin
   Len := AReader.ReadVarUInt;
   SetLength(RecBytes, Len);
   if (Len > 0) then
-  begin
     AReader.ReadBytes(RecBytes[0], Len);
-    RecReader := TReader.Create(@RecBytes[0], Len);
-    try
-      Info.Deserialize(RecReader, P);
-    finally
-      RecReader.Free;
-    end;
+  RecReader := TReader.Create(@RecBytes[0], Len);
+  try
+    Info.Deserialize(RecReader, P);
+  finally
+    RecReader.Free;
   end;
 end;
 
@@ -2151,6 +2149,9 @@ begin
     FInitProc(ARecord);
 
   FieldCount := Length(FFields);
+  if (FieldCount = 0) then
+    Exit;
+
   FieldIndex := 0;
   while (AReader.HasData) do
   begin

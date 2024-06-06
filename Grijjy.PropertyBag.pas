@@ -6,11 +6,6 @@ uses
   System.SysUtils;
 
 type
-  TgoPropertyBag = class;
-
-  TgoPropertyBagChangedEvent = procedure(const ASender: TgoPropertyBag;
-    const APropertyName: String) of object;
-
   { A fast, lightweight and general purpose property bag. }
   TgoPropertyBag = class
   {$REGION 'Internal Declarations'}
@@ -59,7 +54,6 @@ type
     FItems: TArray<TItem>;
     FCount: Integer;
     FGrowThreshold: Integer;
-    FOnChanged: TgoPropertyBagChangedEvent;
   private
     function GetAsBoolean(const AName: String): Boolean; inline;
     procedure SetAsBoolean(const AName: String; const AValue: Boolean); inline;
@@ -91,7 +85,6 @@ type
     procedure Cleanup(const AItem: PItem); inline;
     procedure Resize(ANewSize: Integer);
     procedure DoRemove(AIndex: Integer; const AMask: Integer);
-    procedure DoChanged(const AName: String);
   {$ENDREGION 'Internal Declarations'}
   public
     { Creates a new property bag. }
@@ -119,16 +112,12 @@ type
         bag does not contain a property called AName, or the property is not
         of a dynamic array type.
 
-      NOTE: only simple "unmanaged" array element types are supported (that is,
-      T cannot be a managed type such as a String or Interface). This is checked
-      with an assertion.
-
       NOTE: The type parameter <T> MUST be the same as uses when the property
       was added using SetAsArray. Calling SetAsArray<Byte>('foo', ...) followed
       by AsArray<String>('foo') leads to undefined behavior and a probably
       crash. When compiling in DEBUG mode, an assertion is raised when <T> is
       different from the call to SetAsArray<T>. }
-    function AsArray<T: record>(const AName: String): TArray<T>;
+    function AsArray<T>(const AName: String): TArray<T>;
 
     { Adds or replaces a generic dynamic array in the property bag.
 
@@ -137,7 +126,7 @@ type
         AValue: the dynamic array to associate with AName.
 
       See AsArray<T> for important information about type safety. }
-    procedure SetAsArray<T: record>(const AName: String; const AValue: TArray<T>);
+    procedure SetAsArray<T>(const AName: String; const AValue: TArray<T>);
 
     { Retrieves a record from the property bag given a name.
 
@@ -209,10 +198,6 @@ type
 
     { Number of items in the property bag. }
     property Count: Integer read FCount;
-
-    { Is fired when the value of a property has changed.
-      The APropertyName parameter contains the name of the changed property. }
-    property OnChanged: TgoPropertyBagChangedEvent read FOnChanged write FOnChanged;
   end;
 
 implementation
@@ -257,7 +242,6 @@ function TgoPropertyBag.AsArray<T>(const AName: String): TArray<T>;
 var
   Item: PItem;
 begin
-  Assert(not IsManagedType(T), 'Only unmanaged array element types are supported.');
   Item := Get(AName);
   if (Item <> nil) and (Item.Kind = vkDynArray) then
   begin
@@ -351,12 +335,6 @@ destructor TgoPropertyBag.Destroy;
 begin
   Clear;
   inherited;
-end;
-
-procedure TgoPropertyBag.DoChanged(const AName: String);
-begin
-  if Assigned(FOnChanged) then
-    FOnChanged(Self, AName);
 end;
 
 procedure TgoPropertyBag.DoRemove(AIndex: Integer; const AMask: Integer);
@@ -600,20 +578,12 @@ procedure TgoPropertyBag.SetAsArray<T>(const AName: String;
   const AValue: TArray<T>);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
-  Assert(not IsManagedType(T), 'Only unmanaged array element types are supported.');
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkDynArray) or (Item.AsDynArray <> Pointer(AValue));
     Cleanup(Item);
-  end;
 
   Item.Kind := vkDynArray;
   {$IFDEF DEBUG}
@@ -621,33 +591,20 @@ begin
   {$ENDIF}
   Assert(Item.AsDynArray = nil);
   TArray<T>(Item.AsDynArray) := AValue; { Increases ref count }
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsBoolean(const AName: String; const AValue: Boolean);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkBoolean) or (Item.AsBoolean <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkBoolean;
   Item.AsBoolean := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsBytes(const AName: String; const AValue: TBytes);
@@ -659,142 +616,85 @@ procedure TgoPropertyBag.SetAsCardinal(const AName: String;
   const AValue: Cardinal);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkCardinal) or (Item.AsCardinal <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkCardinal;
   Item.AsCardinal := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsDouble(const AName: String; const AValue: Double);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkDouble) or (Item.AsDouble <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkDouble;
   Item.AsDouble := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsInt64(const AName: String; const AValue: Int64);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkInt64) or (Item.AsInt64 <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkInt64;
   Item.AsInt64 := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsInteger(const AName: String;
   const AValue: Integer);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkInteger) or (Item.AsInteger <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkInteger;
   Item.AsInteger := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsInterface(const AName: String;
   const AValue: IInterface);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkInterface) or (Item.AsInterface <> Pointer(AValue));
     Cleanup(Item);
-  end;
 
   Item.Kind := vkInterface;
   Assert(Item.AsInterface = nil);
   IInterface(Item.AsInterface) := AValue; { Increases ref count }
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsObject(const AName: String; const AValue: TObject);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkObject) or (Item.AsObject <> Pointer(AValue));
     Cleanup(Item);
-  end;
 
   Item.Kind := vkObject;
   {$IFDEF AUTOREFCOUNT}
@@ -803,52 +703,32 @@ begin
   {$ELSE}
   Item.AsObject := AValue;
   {$ENDIF}
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsPointer(const AName: String; const AValue: Pointer);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkPointer) or (Item.AsPointer <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkPointer;
   Item.AsPointer := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsRecord<T>(const AName: String; const AValue: T);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Assert(not IsManagedType(T), 'Only unmanaged record types are supported.');
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkRecord);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkRecord;
   {$IFDEF DEBUG}
@@ -856,89 +736,49 @@ begin
   {$ENDIF}
   GetMem(Item.AsRecord, SizeOf(T));
   T(Item.AsRecord^) := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsSingle(const AName: String; const AValue: Single);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkSingle) or (Item.AsSingle <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkSingle;
   Item.AsSingle := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsString(const AName, AValue: String);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkString);
-    if (not HasChanged) then
-    begin
-      if (Item.AsString <> nil) then
-        HasChanged := (AValue <> String(Item.AsString))
-      else
-        HasChanged := (AValue <> '');
-    end;
     Cleanup(Item);
-  end;
 
   Item.Kind := vkString;
   Assert(Item.AsString = nil);
   String(Item.AsString) := AValue; { Increases ref count }
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 procedure TgoPropertyBag.SetAsUInt64(const AName: String; const AValue: UInt64);
 var
   Item: PItem;
-  HasChanged: Boolean;
 begin
   Item := Get(AName);
   if (Item = nil) then
-  begin
-    Item := Add(AName);
-    HasChanged := True;
-  end
+    Item := Add(AName)
   else
-  begin
-    HasChanged := (Item.Kind <> vkUInt64) or (Item.AsUInt64 <> AValue);
     Cleanup(Item);
-  end;
 
   Item.Kind := vkUInt64;
   Item.AsUInt64 := AValue;
-
-  if (HasChanged) then
-    DoChanged(AName);
 end;
 
 end.

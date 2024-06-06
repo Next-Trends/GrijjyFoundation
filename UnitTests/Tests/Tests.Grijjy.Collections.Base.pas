@@ -435,13 +435,13 @@ var
 begin
   case FTypeInfo.Kind of
     tkClass:
-      Obj.Free;
+      Obj.DisposeOf;
 
     tkRecord:
       if (FTypeInfo.NameFld.ToString = 'TFooBarRecord') then
       begin
-        FB.Foo.Free;
-        FB.Bar.Free;
+        FB.Foo.DisposeOf;
+        FB.Bar.DisposeOf;
       end;
 
     tkDynArray:

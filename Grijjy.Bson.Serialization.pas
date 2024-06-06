@@ -150,7 +150,6 @@ TgoObjectId:
 TBytes:
 * Binary (default)
 * String (hex string, using 2 hex digits per byte)
-* Array (a regular JSON array of bytes)
 
 Note that for array members, the BsonRepresentation attribute applies to the
 element types, not to the array itself:
@@ -592,7 +591,7 @@ type
 type
   { Possible representation types for use with BsonRepresentationAttribute }
   TgoBsonRepresentation = (Default, Boolean, Int32, Int64, Double, &String,
-    DateTime, Document, Binary, ObjectId, Symbol, &Array);
+    DateTime, Document, Binary, ObjectId, Symbol);
 
 type
   { Used internally by BsonDefaultValueAttribute to specify a default value }
@@ -1742,7 +1741,7 @@ class procedure TgoBsonSerializer.CheckTBytesRepresentation(
   const ARepresentation: TgoBsonRepresentation);
 begin
   if (not (ARepresentation in [TgoBsonRepresentation.Binary,
-    TgoBsonRepresentation.String, TgoBsonRepresentation.Array]))
+    TgoBsonRepresentation.String]))
   then
     raise EgoBsonSerializerError.Create('Invalid TBytes representation');
 end;
@@ -1810,7 +1809,7 @@ begin
   end;
 
   case Serializer.TypeKind of
-    tkRecord {$IF (RTLVersion >= 34)},tkMRecord{$ENDIF}:
+    tkRecord:
       begin
         Assert(Serializer is TRecordSerializer);
 
@@ -1820,14 +1819,7 @@ begin
         if Assigned(RecordSerializer.InitializeProc) then
           RecordSerializer.InitializeProc(@AValue)
         else
-        begin
           FillChar(AValue, SizeOf(T), 0);
-          {$IF (RTLVersion >= 34)}
-          if (Serializer.TypeKind = tkMRecord) then
-            { Make sure Initialize operator is called (if available). }
-            Initialize(AValue);
-          {$ENDIF}
-        end;
         RecordSerializer.Deserialize(@AValue, AReader);
       end;
 
@@ -2235,9 +2227,6 @@ begin
   case ATypeInfo.Kind of
     tkClass   : Result := TClassSerializer.Create(ATypeInfo);
     tkRecord  : Result := TRecordSerializer.Create(ATypeInfo);
-    {$IF (RTLVersion >= 34)}
-    tkMRecord : Result := TRecordSerializer.Create(ATypeInfo);
-    {$ENDIF}
     tkDynArray: Result := TArraySerializer.Create(ATypeInfo);
   else
     raise EgoBsonSerializerError.Create('Only class and record types can be serialized');
@@ -2384,7 +2373,7 @@ begin
   end;
 
   case Serializer.TypeKind of
-    tkRecord {$IF (RTLVersion >= 34)},tkMRecord{$ENDIF}:
+    tkRecord:
       begin
         Assert(Serializer is TRecordSerializer);
         RecordSerializer.Serialize(@AValue, AWriter);
@@ -2960,7 +2949,7 @@ end;
 
 destructor TgoBsonSerializer.TStructSerializer.Destroy;
 begin
-  FInfoByName.Free;
+  FInfoByName.DisposeOf;
   inherited;
 end;
 
@@ -3467,35 +3456,28 @@ begin
   ElementSize := FElementSize;
   ElementInfo := FElementInfo;
   ElementDeserializeProc := ElementInfo.DeserializeProc;
-  try
-    while (AReader.ReadBsonType <> TgoBsonType.EndOfDocument) do
+  while (AReader.ReadBsonType <> TgoBsonType.EndOfDocument) do
+  begin
+    if (Count >= Capacity) then
     begin
-      if (Count >= Capacity) then
-      begin
-        if (Capacity > 64) then
-          Inc(Capacity, Capacity div 4)
-        else if (Capacity > 8) then
-          Inc(Capacity, 16)
-        else
-          Inc(Capacity, 4);
-        DynArraySetLength(Result, FTypeInfo, 1, @Capacity);
-        Element := PByte(Result) + (Count * ElementSize);
-      end;
-
-      Inc(Count);
-      ElementDeserializeProc(ElementInfo, Element, AReader);
-      Inc(Element, ElementSize);
+      if (Capacity > 64) then
+        Inc(Capacity, Capacity div 4)
+      else if (Capacity > 8) then
+        Inc(Capacity, 16)
+      else
+        Inc(Capacity, 4);
+      DynArraySetLength(Result, FTypeInfo, 1, @Capacity);
+      Element := PByte(Result) + (Count * ElementSize);
     end;
-    if (Count > 0) then
-      DynArraySetLength(Result, FTypeInfo, 1, @Count);
 
-    AReader.ReadEndArray;
-  except
-    { Issue #32: clear array in case of exception }
-    if (Result <> nil) then
-      DynArrayClear(Result, FTypeInfo);
-    raise;
+    Inc(Count);
+    ElementDeserializeProc(ElementInfo, Element, AReader);
+    Inc(Element, ElementSize);
   end;
+  if (Count > 0) then
+    DynArraySetLength(Result, FTypeInfo, 1, @Count);
+
+  AReader.ReadEndArray;
 end;
 
 destructor TgoBsonSerializer.TArraySerializer.Destroy;
@@ -4024,7 +4006,7 @@ begin
         end;
       end;
 
-    tkRecord {$IF (RTLVersion >= 34)},tkMRecord{$ENDIF}:
+    tkRecord:
       begin
         if (AType = TypeInfo(TGUID)) then
         begin
@@ -4060,7 +4042,7 @@ begin
         if FIgnoreIfDefault and FHasDefaultValue then
           raise EgoBsonSerializerError.Create('Custom default values are not supported for array types');
 
-        if (AType = TypeInfo(TBytes)) and (FRepresentation <> TgoBsonRepresentation.Array) then
+        if (AType = TypeInfo(TBytes)) then
         begin
           FSerializeProc := SerializeTBytes;
           FDeserializeProc := DeserializeTBytes;
@@ -4457,7 +4439,7 @@ begin
       SetObjectProp(AInstance, AProp.Info, Obj)
     else
     begin
-      Obj.Free;
+      Obj.DisposeOf;
       raise EgoBsonSerializerError.CreateFmt('Cannot set read-only property %s.%s', [Obj.ClassName, AProp.Name]);
     end;
   end;
@@ -4729,7 +4711,7 @@ begin
         end;
       end;
 
-    tkRecord {$IF (RTLVersion >= 34)},tkMRecord{$ENDIF}:
+    tkRecord:
       begin
         if (AType = TypeInfo(TGUID)) then
         begin
@@ -4765,7 +4747,7 @@ begin
         if FIgnoreIfDefault and FHasDefaultValue then
           raise EgoBsonSerializerError.Create('Custom default values are not supported for array types');
 
-        if (AType = TypeInfo(TBytes)) and (FRepresentation <> TgoBsonRepresentation.Array) then
+        if (AType = TypeInfo(TBytes)) then
         begin
           FSerializeProc := SerializeTBytes;
           FDeserializeProc := DeserializeTBytes;

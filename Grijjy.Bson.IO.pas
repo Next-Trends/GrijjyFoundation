@@ -2657,11 +2657,8 @@ begin
     until (FCapacity >= (FSize + ASize));
     SetLength(FBuffer, FCapacity);
   end;
-  if (ASize > 0) then
-  begin
-    Move(AValue, FBuffer[FSize], ASize);
-    Inc(FSize, ASize);
-  end;
+  Move(AValue, FBuffer[FSize], ASize);
+  Inc(FSize, ASize);
 end;
 
 procedure TgoBsonWriter.TOutput.WriteBinarySubType(
@@ -3471,11 +3468,8 @@ begin
     until (FCapacity >= (FSize + ASize));
     ReallocMem(FBuffer, FCapacity);
   end;
-  if (ASize > 0) then
-  begin
-    Move(AValue, FBuffer[FSize], ASize);
-    Inc(FSize, ASize);
-  end;
+  Move(AValue, FBuffer[FSize], ASize);
+  Inc(FSize, ASize);
 end;
 
 procedure TgoJsonWriter.TOutput.Append(const AValue: Char);
@@ -6838,7 +6832,7 @@ var
   C: Char;
 begin
   C := ABuffer.Read;
-  if (Ord(C) >= $80) then
+  if (C >= #$80) then
     CharError(ABuffer, C, AToken)
   else
     FCharHandlers[C](ABuffer, C, AToken);
@@ -6853,7 +6847,7 @@ begin
   while (C <> #0) and (C <= ' ') do
     C := ABuffer.Read;
 
-  if (Ord(C) >= $80) then
+  if (C >= #$80) then
     CharError(ABuffer, C, AToken)
   else
     FCharHandlers[C](ABuffer, C, AToken);
